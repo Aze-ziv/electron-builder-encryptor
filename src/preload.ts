@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import mime from 'mime'
-import { BrowserWindow, app, dialog, protocol } from 'electron'
+import { BrowserWindow, app, dialog, protocol, session } from 'electron'
 import YAML from 'yaml'
 import { getAppResourcesMap } from './decrypt'
 import { readAppAsarMd5, readAppAsarMd5Sync } from './encrypt'
@@ -41,20 +41,23 @@ app.whenReady().then(() => {
   const appResourcesMap = getAppResourcesMap(
     fs.readFileSync(rendererPath),
     __encryptorConfig.key
-  )
+  );
 
-  protocol.registerBufferProtocol(appProtocol, (request, callback) => {
-    try {
-      let url = request.url.replace(`${appProtocol}://apps/`, '')
-      url = url.split(/#|\?/)[0]
-      callback({
-        data: appResourcesMap.get(url),
-        mimeType: mime.getType(url) || undefined,
-      })
-    } catch (error) {
-      console.error(error)
-      callback({ data: undefined })
-    }
+  ['index', 'fish', 'config'].forEach(partition => {
+    const ses = session.fromPartition(partition)
+    ses.protocol.registerBufferProtocol(appProtocol, (request, callback) => {
+      try {
+        let url = request.url.replace(`${appProtocol}://apps/`, '')
+        url = url.split(/#|\?/)[0]
+        callback({
+          data: appResourcesMap.get(url),
+          mimeType: mime.getType(url) || undefined,
+        })
+      } catch (error) {
+        console.error(error)
+        callback({ data: undefined })
+      }
+    })  
   })
 })
 
